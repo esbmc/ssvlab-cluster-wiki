@@ -1,0 +1,66 @@
+###################################
+# NOTES
+###################################
+
+# This docker environment will be used as a base to build ESBMC in static mode with python
+# It currently works by providing an ubuntu 18.04 environment with the following tools:
+
+# - Clang 7
+# - CVC4
+# - Yices
+# - Z3
+# - Boolector
+# - Mathsat
+
+# All solvers are compiled statically
+
+# I am removing libgomp.so only because autoconf told me to do it. So... why?
+
+###################################
+# TODO
+###################################
+
+# Reduce image size
+# - This really should use a multi-stage build
+# - Maybe use alpine instead of ubuntu to reduce size. Also, if it works on alpine
+#   it WILL work on any *nix
+
+# DockerHub
+# - After this dockerfile is ready, we should send to dockerhub as the supported
+#   version (and update it with time)
+
+###################################
+# START
+###################################
+FROM jenkins/jnlp-slave
+
+###################################
+# ROOT
+###################################
+USER root
+# Core Packages
+RUN dpkg --add-architecture i386 \
+    && apt-get update \
+    && apt-get install -y python3-pip python wget sudo \
+    && pip3 install BenchExec \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/* \
+    && groupadd benchexec \
+    && adduser jenkins benchexec
+
+RUN cp /etc/sudoers /etc/sudoers.bak && \
+    echo 'jenkins  ALL=(root) NOPASSWD: ALL' >> /etc/sudoers
+
+###################################
+# jenkins user
+###################################
+USER jenkins
+
+WORKDIR /home/jenkins/agent
+RUN wget -rnp -c -N https://github.com/sosy-lab/sv-benchmarks/archive/svcomp19.tar.gz \
+    && tar xf svcomp19.tar.gz \
+    && mv sv-benchmarks-svcomp19 sv-benchmarks \
+    && rm svcomp19.tar.gz
+
+# Execute jenkins-slave
+ENTRYPOINT ["/usr/local/bin/jenkins-slave"]
